@@ -50,16 +50,31 @@ class ConsumerRepository<T> implements Iterable<ConsumerInfo>
         consumerInfos.add(consumerInfo);
     }
 
-    public void add(final WorkerPool<T> workerPool, final SequenceBarrier sequenceBarrier)
+    public boolean hasBacklog(long cursor, boolean includeStopped)
     {
-        final WorkerPoolInfo<T> workerPoolInfo = new WorkerPoolInfo<>(workerPool, sequenceBarrier);
-        consumerInfos.add(workerPoolInfo);
-        for (Sequence sequence : workerPool.getWorkerSequences())
+        for (ConsumerInfo consumerInfo : consumerInfos)
         {
-            eventProcessorInfoBySequence.put(sequence, workerPoolInfo);
+            if ((includeStopped || consumerInfo.isRunning()) && consumerInfo.isEndOfChain())
+            {
+                final Sequence[] sequences = consumerInfo.getSequences();
+                for (Sequence sequence : sequences)
+                {
+                    if (cursor > sequence.get())
+                    {
+                        return true;
+                    }
+                }
+            }
         }
+
+        return false;
     }
 
+    /**
+     * @deprecated this function should no longer be used to determine the existence
+     * of a backlog, instead use hasBacklog
+     */
+    @Deprecated
     public Sequence[] getLastSequenceInChain(boolean includeStopped)
     {
         List<Sequence> lastSequence = new ArrayList<>();
